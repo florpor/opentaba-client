@@ -12,6 +12,9 @@ var RUNNING_LOCAL = (document.location.host == 'localhost' || document.location.
 var API_URL = RUNNING_LOCAL ? 'http://0.0.0.0:5000/' : CITY_API_URL;
 var ADDR_DB_API_URL = RUNNING_LOCAL ? 'http://0.0.0.0:5000/' : 'https://opentaba-address-db.herokuapp.com/';
 
+var gushimLayer;
+leafletPip.bassackwards = true;
+
 // Enable getScript cache
 $.ajaxSetup({
 	cache: true
@@ -23,7 +26,7 @@ var gotGushimDelegateParam = null;
 		
 // Load the wanted gushim's json
 $.getScript(city.JsonFile, function(data, textStatus, jqxhr) {
-	L.geoJson(gushim,
+	gushimLayer = L.geoJson(gushim,
 	{
 		onEachFeature: onEachFeature,
 		style : {
@@ -157,25 +160,57 @@ function get_gush_by_addr(addr) {
 	}
 	
 	console.log("get_gush_by_addr: " + addr);
-	$.getJSON(
-		ADDR_DB_API_URL + 'locate/' + addr,
+   	
+   	// Use Google api to find a gush by address
+   	$.getJSON(
+		'https://maps.googleapis.com/maps/api/geocode/json?address='+addr+'&sensor=false',
 		function (r) {
 			$('#scrobber').hide();
-			var gid = r["gush_id"];var lat = r["lat"];var lon = r["lon"];
-			console.log('got gush id: ' + gid + ", lon: " + lon + ", lat: " + lat);
-			if (gid) {
-				get_gush(gid);
-				var pp = L.popup().setLatLng([lat, lon]).setContent('<b>' + addr + '</b>').openOn(map);
-				$('#addr-error-p').html('');
-			} else {
+			$('#addr-error-p').html('');
+			
+			if (r['status'] == 'OK') {
+				// Here we have a case when Google api returns without the route (street), so 
+				// it only has a city. This happens because it didn't find the address, but we 
+				// did add the name of the current city at the end, and Google apparently thinks  
+				// 'better something than nothing'
+				var gotStreet = false;
+				$.each(r['results'][0]['address_components'], function(a, addressComponent) {
+					if ($.inArray('route', addressComponent['types']) > -1) {
+						gotStreet = true;
+						return false; // Break the loop
+					}
+				});
+				
+				if (!gotStreet) {
+					$('#addr-error-p').html('כתובת שגויה או שלא נמצאו נתונים');
+				}
+				else {
+					var lat = r['results'][0]['geometry']['location']['lat'];
+					var lon = r['results'][0]['geometry']['location']['lng'];
+					console.log('got lon: ' + lon + ', lat: ' + lat);
+			
+					// Using leafletpip we try to find an object in the gushim layer with the coordinate we got
+					var gid = leafletPip.pointInLayer([lat, lon], gushimLayer, true);
+					if (gid && gid.length > 0) {
+						get_gush(gid[0].gushid);
+						var pp = L.popup().setLatLng([lat, lon]).setContent('<b>' + addr + '</b>').openOn(map);
+					} else {
+						$('#addr-error-p').html('לא נמצא גוש התואם לכתובת');
+					}
+				}
+			}
+			else if (r['status'] == 'ZERO_RESULTS') {
 				$('#addr-error-p').html('כתובת שגויה או שלא נמצאו נתונים');
+			}
+			else {
+				$('#addr-error-p').html('חלה שגיאה בחיפוש הכתובת, אנא נסו שנית מאוחר יותר');
 			}
 		}
 	)
    .fail(
    		function(){
    			$('#scrobber').hide(); 
-   			$('#addr-error-p').html('לא נמצאו נתונים לכתובת "' + addr + '"'); 
+   			$('#addr-error-p').html('חלה שגיאה בחיפוש הכתובת, אנא נסו שנית מאוחר יותר');
    		}
    	);
 }
@@ -294,14 +329,3 @@ L.tileLayer(tile_url, {
 	maxZoom: 16,
 	minZoom: 13
 }).addTo(map);
-
-/*L.geoJson(gushim,
-	{
-		onEachFeature: onEachFeature,
-		style : {
-			"color" : "#777",
-			"weight": 1,
-			"opacity": 0.9
-		}
-	}
-).addTo(map);*/
