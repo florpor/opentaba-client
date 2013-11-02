@@ -168,20 +168,12 @@ function get_gush_by_addr(addr) {
 			$('#scrobber').hide();
 			$('#addr-error-p').html('');
 			
-			if (r['status'] == 'OK') {
-				// Here we have a case when Google api returns without the route (street), so 
-				// it only has a city. This happens because it didn't find the address, but we 
-				// did add the name of the current city at the end, and Google apparently thinks  
-				// 'better something than nothing'
-				var gotStreet = false;
-				$.each(r['results'][0]['address_components'], function(a, addressComponent) {
-					if ($.inArray('route', addressComponent['types']) > -1) {
-						gotStreet = true;
-						return false; // Break the loop
-					}
-				});
-				
-				if (!gotStreet) {
+			if (r['status'] == 'OK' && r['results'].length > 0) {
+				// Here we have a case when Google api returns without an actual place (even a street), 
+				// so it only has a city. This happens because it didn't find the address, but we 
+				// did append the name of the current city at the end, and Google apparently thinks  
+				// 'better something than nothing'. We're trying to ignore this (should test though)
+				if (r['results'][0]['types'] == [ 'locality', 'political' ]) {
 					$('#addr-error-p').html('כתובת שגויה או שלא נמצאו נתונים');
 				}
 				else {
