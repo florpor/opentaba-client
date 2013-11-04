@@ -173,7 +173,10 @@ function get_gush_by_addr(addr) {
 				// so it only has a city. This happens because it didn't find the address, but we 
 				// did append the name of the current city at the end, and Google apparently thinks  
 				// 'better something than nothing'. We're trying to ignore this (should test though)
-				if (r['results'][0]['types'] == [ 'locality', 'political' ]) {
+				var cityTypes = [ 'locality', 'political' ];
+				// This is a jquery (apparently undocumented) method for comparing two arrays
+				if ($(r['results'][0]['types']).not(cityTypes).length == 0 && 
+					$(cityTypes).not(r['results'][0]['types']).length == 0) {
 					$('#addr-error-p').html('כתובת שגויה או שלא נמצאו נתונים');
 				}
 				else {
@@ -187,7 +190,7 @@ function get_gush_by_addr(addr) {
 						get_gush(gid[0].gushid);
 						var pp = L.popup().setLatLng([lat, lon]).setContent('<b>' + addr + '</b>').openOn(map);
 					} else {
-						$('#addr-error-p').html('לא נמצא גוש התואם לכתובת');
+						$('#addr-error-p').html('לא נמצא גוש התואם לכתובת'); // TODO: when enabling multiple cities change the message to point users to try a differenct city
 					}
 				}
 			}
